@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  postgres-db:
+    image: postgres:16-alpine
+    container_name: local-postgres-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: event_log_db
+      POSTGRES_USER: dev_user
+      POSTGRES_PASSWORD: dev_password
+      TZ: Asia/Seoul
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U dev_user -d event_log_db" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  springboot-app:
+    build: .
+    container_name: local-springboot-app
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/event_log_db
+      SPRING_DATASOURCE_USERNAME: dev_user
+      SPRING_DATASOURCE_PASSWORD: dev_password
+      TZ: Asia/Seoul
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    networks:
+      - app-network
+  grafana:
+    image: grafana/grafana-oss:latest
+    container_name: local-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    depends_on:
+      - postgres-db
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
+
+networks:
+  app-network:
+    driver: bridge
